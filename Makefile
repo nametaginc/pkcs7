@@ -1,20 +1,18 @@
-all: vet staticcheck test
+.PHONY: all
+all: lint vet test
 
+.PHONY: test
 test:
-	go test -covermode=count -coverprofile=coverage.out .
+	GODEBUG=x509sha1=1 go test -covermode=count -coverprofile=coverage.out .
 
+.PHONY: showcoverage
 showcoverage: test
 	go tool cover -html=coverage.out
 
+.PHONY: vet
 vet:
 	go vet .
 
+.PHONY: lint
 lint:
-	golint .
-
-staticcheck:
-	staticcheck .
-
-gettools:
-	go get -u honnef.co/go/tools/...
-	go get -u golang.org/x/lint/golint
+	golangci-lint run
