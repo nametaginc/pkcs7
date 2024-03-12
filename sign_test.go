@@ -7,7 +7,6 @@ import (
 	"encoding/asn1"
 	"encoding/pem"
 	"fmt"
-	"io/ioutil"
 	"log"
 	"math/big"
 	"os"
@@ -66,7 +65,10 @@ func TestSign(t *testing.T) {
 					if err != nil {
 						t.Fatalf("test %s/%s/%s: cannot finish signing data: %s", sigalgroot, sigalginter, sigalgsigner, err)
 					}
-					pem.Encode(os.Stdout, &pem.Block{Type: "PKCS7", Bytes: signed})
+					err = pem.Encode(os.Stdout, &pem.Block{Type: "PKCS7", Bytes: signed})
+					if err != nil {
+						t.Fatalf("test %s/%s/%s: cannot encode data: %s", sigalgroot, sigalginter, sigalgsigner, err)
+					}
 					p7, err := Parse(signed)
 					if err != nil {
 						t.Fatalf("test %s/%s/%s: cannot parse signed data: %s", sigalgroot, sigalginter, sigalgsigner, err)
@@ -93,11 +95,11 @@ func TestSign(t *testing.T) {
 func TestDSASignAndVerifyWithOpenSSL(t *testing.T) {
 	content := []byte("Hello World")
 	// write the content to a temp file
-	tmpContentFile, err := ioutil.TempFile("", "TestDSASignAndVerifyWithOpenSSL_content")
+	tmpContentFile, err := os.CreateTemp("", "TestDSASignAndVerifyWithOpenSSL_content")
 	if err != nil {
 		t.Fatal(err)
 	}
-	ioutil.WriteFile(tmpContentFile.Name(), content, 0755)
+	_ = os.WriteFile(tmpContentFile.Name(), content, 0755)
 
 	block, _ := pem.Decode([]byte(dsaPublicCert))
 	if block == nil {
@@ -109,11 +111,11 @@ func TestDSASignAndVerifyWithOpenSSL(t *testing.T) {
 	}
 
 	// write the signer cert to a temp file
-	tmpSignerCertFile, err := ioutil.TempFile("", "TestDSASignAndVerifyWithOpenSSL_signer")
+	tmpSignerCertFile, err := os.CreateTemp("", "TestDSASignAndVerifyWithOpenSSL_signer")
 	if err != nil {
 		t.Fatal(err)
 	}
-	ioutil.WriteFile(tmpSignerCertFile.Name(), dsaPublicCert, 0755)
+	_ = os.WriteFile(tmpSignerCertFile.Name(), dsaPublicCert, 0755)
 
 	priv := dsa.PrivateKey{
 		PublicKey: dsa.PublicKey{Parameters: dsa.Parameters{P: fromHex("fd7f53811d75122952df4a9c2eece4e7f611b7523cef4400c31e3f80b6512669455d402251fb593d8d58fabfc5f5ba30f6cb9b556cd7813b801d346ff26660b76b9950a5a49f9fe8047b1022c24fbba9d7feb7c61bf83b57e7c6a8a6150f04fb83f6d3c51ec3023554135a169132f675f3ae2b61d72aeff22203199dd14801c7"),
@@ -137,11 +139,11 @@ func TestDSASignAndVerifyWithOpenSSL(t *testing.T) {
 	}
 
 	// write the signature to a temp file
-	tmpSignatureFile, err := ioutil.TempFile("", "TestDSASignAndVerifyWithOpenSSL_signature")
+	tmpSignatureFile, err := os.CreateTemp("", "TestDSASignAndVerifyWithOpenSSL_signature")
 	if err != nil {
 		t.Fatal(err)
 	}
-	ioutil.WriteFile(tmpSignatureFile.Name(), pem.EncodeToMemory(&pem.Block{Type: "PKCS7", Bytes: signed}), 0755)
+	_ = os.WriteFile(tmpSignatureFile.Name(), pem.EncodeToMemory(&pem.Block{Type: "PKCS7", Bytes: signed}), 0755)
 
 	// call openssl to verify the signature on the content using the root
 	opensslCMD := exec.Command("openssl", "smime", "-verify", "-noverify",
@@ -151,9 +153,9 @@ func TestDSASignAndVerifyWithOpenSSL(t *testing.T) {
 	if err != nil {
 		t.Fatalf("test case: openssl command failed with %s: %s", err, out)
 	}
-	os.Remove(tmpSignatureFile.Name())  // clean up
-	os.Remove(tmpContentFile.Name())    // clean up
-	os.Remove(tmpSignerCertFile.Name()) // clean up
+	_ = os.Remove(tmpSignatureFile.Name())  // clean up
+	_ = os.Remove(tmpContentFile.Name())    // clean up
+	_ = os.Remove(tmpSignerCertFile.Name()) // clean up
 }
 
 func ExampleSignedData() {
@@ -183,7 +185,10 @@ func ExampleSignedData() {
 	if err != nil {
 		fmt.Printf("Cannot finish signing data: %s", err)
 	}
-	pem.Encode(os.Stdout, &pem.Block{Type: "PKCS7", Bytes: detachedSignature})
+	err = pem.Encode(os.Stdout, &pem.Block{Type: "PKCS7", Bytes: detachedSignature})
+	if err != nil {
+		fmt.Printf("Cannot encode data: %s", err)
+	}
 }
 
 func TestUnmarshalSignedAttribute(t *testing.T) {
@@ -231,16 +236,21 @@ func TestDegenerateCertificate(t *testing.T) {
 		t.Fatal(err)
 	}
 	testOpenSSLParse(t, deg)
-	pem.Encode(os.Stdout, &pem.Block{Type: "PKCS7", Bytes: deg})
+	err = pem.Encode(os.Stdout, &pem.Block{Type: "PKCS7", Bytes: deg})
+	if err != nil {
+		t.Fatal(err)
+	}
 }
 
 // writes the cert to a temporary file and tests that openssl can read it.
 func testOpenSSLParse(t *testing.T, certBytes []byte) {
-	tmpCertFile, err := ioutil.TempFile("", "testCertificate")
+	tmpCertFile, err := os.CreateTemp("", "testCertificate")
 	if err != nil {
 		t.Fatal(err)
 	}
-	defer os.Remove(tmpCertFile.Name()) // clean up
+	defer func(name string) {
+		_ = os.Remove(name)
+	}(tmpCertFile.Name()) // clean up
 
 	if _, err := tmpCertFile.Write(certBytes); err != nil {
 		t.Fatal(err)
