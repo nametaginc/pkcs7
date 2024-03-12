@@ -1,22 +1,45 @@
+---
 name: CI
-on:
-  pull_request:
-    branches: [master]
+"on": [push, pull_request]
+
+permissions:
+  contents: read
+  pull-requests: read
+  checks: write
 
 jobs:
   test:
     name: Test
+    strategy:
+      matrix:
+        go: ['1.17.x', '1.18.x', '1.19.x', '1.20.x', '1.21.x', '1.22.x', 'stable']
     runs-on: ubuntu-latest
     steps:
-    - uses: actions/checkout@v2
-      with:
-        fetch-depth: 0
-    - uses: actions/setup-go@v2
-      with:
-        go-version: "1.22.0"
-    - name: Vet
-      run: go vet .
-    - name: Build
-      run: go build .
-    - name: Test
-      run: GODEBUG=x509sha1=1 go test -count=1 -covermode=count -coverprofile=coverage.out .
+      - uses: actions/checkout@v4
+      - uses: actions/setup-go@v5
+        with:
+          go-version: ${{ matrix.go }}
+          cache: false
+      - name: go test
+        env:
+          GODEBUG: x509sha1=1
+        run: go vet . && go build . && go test .
+
+  golangci:
+    # Docs: https://github.com/golangci/golangci-lint-action?tab=readme-ov-file#how-to-use
+    name: Lint
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-go@v5
+        with:
+          go-version: 'stable'
+          cache: false
+      - name: golangci-lint
+        uses: golangci/golangci-lint-action@v4
+        with:
+          version: latest
+          only-new-issues: true
+          skip-cache: true
+          skip-pkg-cache: true
+          skip-build-cache: true
