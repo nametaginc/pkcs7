@@ -82,7 +82,9 @@ func marshalAttributes(attrs []attribute) ([]byte, error) {
 
 	// Remove the leading sequence octets
 	var raw asn1.RawValue
-	asn1.Unmarshal(encodedAttributes, &raw)
+	if _, err := asn1.Unmarshal(encodedAttributes, &raw); err != nil {
+		return nil, err
+	}
 	return raw.Bytes, nil
 }
 

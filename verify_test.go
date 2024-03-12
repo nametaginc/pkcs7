@@ -452,11 +452,11 @@ A ship in port is safe,
 but that's not what ships are built for.
 -- Grace Hopper`)
 	// write the content to a temp file
-	tmpContentFile, err := ioutil.TempFile("", "TestSignWithOpenSSLAndVerify_content")
+	tmpContentFile, err := os.CreateTemp("", "TestSignWithOpenSSLAndVerify_content")
 	if err != nil {
 		t.Fatal(err)
 	}
-	ioutil.WriteFile(tmpContentFile.Name(), content, 0755)
+	_ = os.WriteFile(tmpContentFile.Name(), content, 0755)
 	sigalgs := []x509.SignatureAlgorithm{
 		x509.SHA1WithRSA,
 		x509.SHA256WithRSA,
@@ -479,7 +479,7 @@ but that's not what ships are built for.
 				t.Fatalf("test %s/%s: cannot generate intermediate cert: %s", sigalgroot, sigalginter, err)
 			}
 			// write the intermediate cert to a temp file
-			tmpInterCertFile, err := ioutil.TempFile("", "TestSignWithOpenSSLAndVerify_intermediate")
+			tmpInterCertFile, err := os.CreateTemp("", "TestSignWithOpenSSLAndVerify_intermediate")
 			if err != nil {
 				t.Fatal(err)
 			}
@@ -487,8 +487,11 @@ but that's not what ships are built for.
 			if err != nil {
 				t.Fatal(err)
 			}
-			pem.Encode(fd, &pem.Block{Type: "CERTIFICATE", Bytes: interCert.Certificate.Raw})
-			fd.Close()
+			err = pem.Encode(fd, &pem.Block{Type: "CERTIFICATE", Bytes: interCert.Certificate.Raw})
+			if err != nil {
+				t.Fatal(err)
+			}
+			_ = fd.Close()
 			for _, sigalgsigner := range sigalgs {
 				signerCert, err := createTestCertificateByIssuer("PKCS7 Test Signer Cert", interCert, sigalgsigner, false)
 				if err != nil {
@@ -504,8 +507,11 @@ but that's not what ships are built for.
 				if err != nil {
 					t.Fatal(err)
 				}
-				pem.Encode(fd, &pem.Block{Type: "CERTIFICATE", Bytes: signerCert.Certificate.Raw})
-				fd.Close()
+				err = pem.Encode(fd, &pem.Block{Type: "CERTIFICATE", Bytes: signerCert.Certificate.Raw})
+				if err != nil {
+					t.Fatal(err)
+				}
+				_ = fd.Close()
 
 				// write the signer key to a temp file
 				tmpSignerKeyFile, err := ioutil.TempFile("", "TestSignWithOpenSSLAndVerify_key")
@@ -521,15 +527,21 @@ but that's not what ships are built for.
 				switch priv := priv.(type) {
 				case *rsa.PrivateKey:
 					derKey = x509.MarshalPKCS1PrivateKey(priv)
-					pem.Encode(fd, &pem.Block{Type: "RSA PRIVATE KEY", Bytes: derKey})
+					err = pem.Encode(fd, &pem.Block{Type: "RSA PRIVATE KEY", Bytes: derKey})
+					if err != nil {
+						t.Fatal(err)
+					}
 				case *ecdsa.PrivateKey:
 					derKey, err = x509.MarshalECPrivateKey(priv)
 					if err != nil {
 						t.Fatal(err)
 					}
-					pem.Encode(fd, &pem.Block{Type: "EC PRIVATE KEY", Bytes: derKey})
+					err = pem.Encode(fd, &pem.Block{Type: "EC PRIVATE KEY", Bytes: derKey})
+					if err != nil {
+						t.Fatal(err)
+					}
 				}
-				fd.Close()
+				_ = fd.Close()
 
 				// write the root cert to a temp file
 				tmpSignedFile, err := ioutil.TempFile("", "TestSignWithOpenSSLAndVerify_signature")
